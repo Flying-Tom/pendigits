@@ -114,6 +114,6 @@ for epoch in range(200):
         print(f"lr: {optimizer.param_groups[0]['lr']}")
         test_loop()
 
-curtime = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()) 
+curtime = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 torch.save(model, f"./models/epo_{curtime}")
 print("Done!")
