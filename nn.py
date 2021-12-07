@@ -1,9 +1,9 @@
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import MultipleLocator
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
-import time
-import torch
+import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import logging
 from data_utils import get_data
@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 device = 'cpu'
-#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logger.info('Using {} device'.format(device))
 
 
@@ -43,19 +43,16 @@ class NeuralNetwork(nn.Module):
     def __init__(self):
         super(NeuralNetwork, self).__init__()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(16, 128),
-            nn.Linear(128, 10),
-            # nn.Sigmoid()
+            nn.Linear(16, 32),
+            nn.ReLU(),
+            nn.Linear(32, 10),
         )
 
     def forward(self, x):
         return self.linear_relu_stack(x)
 
 
-model = NeuralNetwork().to(device)
-
-
-def train_loop():
+def train_loop(model, criterion, optimizer):
     for X, y in train_dataloader:
         pred = model(X)
         loss = criterion(pred, y)
@@ -82,23 +79,64 @@ def test_loop():
             correct += (pred.argmax(dim=1) == y).type(torch.float).sum().item()
 
     test_loss /= num_batches
-    correct /= size
-    print(f"Test Error|| Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f}")
+    accuracy = 100*correct / size
+    print(f"Test Error|| Accuracy: {(accuracy):>0.1f}%, Avg loss: {test_loss:>8f}")
+    return accuracy, test_loss
 
 
-criterion = nn.CrossEntropyLoss()
-#optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.5)
+# criterion = nn.CrossEntropyLoss()
+# optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
+# optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.5)
 # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, weight_decay=1e-5)
 # scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1/(epoch/10+11))
 
-for epoch in range(30):
-    train_loop()
-    # if(epoch % 20 == 0):
-    print(f"Epoch {epoch+1}\n-------------------------------")
-    #print(f"lr: {optimizer.param_groups[0]['lr']}")
-    test_loop()
+torch.manual_seed(114514)
+epochs = 30
+epochs_list = np.arange(0, epochs)
 
+fig, ax1 = plt.subplots()
+ax2 = ax1.twinx()
+ax1.set_ylim(0, 100)
+ax2.set_ylim(0, 100)
+ax1.set_xlabel("Epochs")
+ax1.set_ylabel("Accuracy")
+ax2.set_ylabel("Test Loss")
+
+
+def one_draw(model, criterion, optimizer, name, color):
+    accuracy_list = []
+    test_loss_list = []
+    for epoch in range(epochs):
+        train_loop(model, criterion, optimizer)
+        # if(epoch % 20 == 0):
+        print(f"Epoch {epoch+1}\n-------------------------------")
+        # print(f"lr: {optimizer.param_groups[0]['lr']}")
+        accuracy, test_loss = test_loop()
+        accuracy_list.append(accuracy)
+        test_loss_list.append(test_loss)
+
+    ax1.plot(epochs_list, accuracy_list, label=name, color=color)
+    ax2.plot(epochs_list, test_loss_list, label=name, color=color)
+
+
+model = NeuralNetwork().to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+one_draw(model, criterion, optimizer, "lr=1e-3", "green")
+
+model = NeuralNetwork().to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+one_draw(model, criterion, optimizer, "lr=1e-4", "blue")
+
+model = NeuralNetwork().to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+one_draw(model, criterion, optimizer, "lr=1e-5", "cyan")
+
+plt.title("Adam and its hyper-parameters")
+plt.legend()
+plt.show()
 
 # curtime = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 # torch.save(model, f"./models/epo_{curtime}")
